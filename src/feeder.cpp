@@ -1,23 +1,32 @@
 // #define USE_SERIAL_DBG 1
 
+// make vscode happy...
+#ifndef __ESP__
+#define __ESP__
+#endif
+
+// make vscode happy...
+#undef __APPLE__
+
 #include "platform.h"
 #include "scheduler.h"
 
 #include "net.h"
 #include "ota.h"
 #include "mqtt.h"
+#include "hass.h"
 
 #include "led.h"
 #include "switch.h"
 #include "motor_interval.h"
 #include "airq_bme280.h"
-// #include "pressure.h"
 
 // entities for core functionality
 ustd::Scheduler sched( 10, 16, 32 );
 ustd::Net       net( LED_BUILTIN );
 ustd::Ota       ota;
 ustd::Mqtt      mqtt;
+ustd::Hass      hass( "Cat Feeder 1", "YeaSoft Int'l", "Balimo 4L WiFi", "1.0.0" );
 
 // entities for connected hardware
 ustd::Led               led( "led", D3, true );
@@ -86,9 +95,10 @@ void setup() {
     Serial.println( "Startup" );
 #endif // USE_SERIAL_DBG
 
+    // initialize core entities
     net.begin( &sched );
     ota.begin( &sched );
-    mqtt.begin( &sched );
+    mqtt.begin( &sched, "", "", "" );
 
     // initialize hardware
     led.begin( &sched );
@@ -96,10 +106,18 @@ void setup() {
     user.begin( &sched );
     feeder.begin( &sched );
     env.begin( &sched );
+    hass.begin( &sched );
 
     // configure hardware
     feeder.setMaxIntervals( 16 );
     feeder.setDefaultIntervals( 2 );
+
+    // configure home assistant integration
+    hass.addAttributes( "bme280", "Bosch Sensortec", "BME280", env.AIRQUALITY_VERSION );
+    hass.addSensor( "bme280", "temperature", "Temperature", "\\u00B0C", "temperature", "", "", "bme280" );
+    hass.addSensor( "bme280", "humidity", "Humidity", "%", "humidity", "", "", "bme280" );
+    hass.addSensor( "bme280", "pressure", "Pressure", "hPa", "pressure", "", "", "bme280" );
+    hass.addSwitch( "feeder", "device", "mdi:cat" );
 
     // initialize application
     int tID = sched.add( app, "main", 50000 );
